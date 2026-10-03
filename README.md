@@ -132,18 +132,6 @@ With the backend running, open:
 
 The orders endpoint requires authentication, so opening it directly in a browser may not return the user's order history.
 
-## Screenshots
-
-Add screenshots of the running app when ready. Example Markdown:
-
-```md
-![Restaurant listing](docs/screenshots/restaurants.png)
-![Cart and checkout](docs/screenshots/checkout.png)
-![My Orders](docs/screenshots/my-orders.png)
-```
-
-Create `docs/screenshots/` and add your images before using these links.
-
 ## Security Notes
 
 - Do not commit `.env` files or publish MongoDB credentials, JWT secrets, or payment gateway secrets.
