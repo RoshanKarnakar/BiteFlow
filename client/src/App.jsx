@@ -4,6 +4,19 @@ import "./App.css";
 
 const API = "http://localhost:3000/api";
 
+function loadRazorpayCheckout() {
+  return new Promise((resolve) => {
+    if (window.Razorpay) return resolve(true);
+
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+}
+
+
 function App() {
   const [authMode, setAuthMode] = useState(null);
 
@@ -39,6 +52,8 @@ function App() {
   const [menuLoading, setMenuLoading] = useState(false);
   const [menuError, setMenuError] = useState("");
   const [showCart, setShowCart] = useState(false);
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState("cod");
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [placingOrder, setPlacingOrder] = useState(false);
   const [orderMessage, setOrderMessage] = useState("");
@@ -249,6 +264,107 @@ function App() {
     setAuthError("");
   }
 
+  async function startRazorpayPayment(orderPayload) {
+    setOrderMessage("");
+    setPlacingOrder(true);
+    let checkoutOpened = false;
+
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${authToken}`,
+    };
+
+    try {
+      const response = await fetch(`${API}/orders/razorpay/create`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(orderPayload),
+      });
+
+      const paymentData = await response.json();
+
+      if (!response.ok || !paymentData.success) {
+        throw new Error(paymentData.message || "Unable to start payment.");
+      }
+
+      const scriptLoaded = await loadRazorpayCheckout();
+
+      if (!scriptLoaded) {
+        throw new Error("Could not load Razorpay. Check your internet connection.");
+      }
+
+      const methodName = {
+        upi: "UPI",
+        card: "Card",
+        netbanking: "Net Banking",
+      }[paymentMethod];
+
+      const checkout = new window.Razorpay({
+        key: paymentData.keyId,
+        amount: paymentData.amount,
+        currency: paymentData.currency,
+        name: "BiteFlow",
+        description: `Food order payment · ${methodName}`,
+        order_id: paymentData.razorpayOrderId,
+        prefill: {
+          name: currentUser?.name || "",
+          email: currentUser?.email || "",
+        },
+        config: {
+          display: {
+            blocks: {
+              selected_method: {
+                name: `Pay using ${methodName}`,
+                instruments: [{ method: paymentMethod }],
+              },
+            },
+            sequence: ["block.selected_method"],
+            preferences: { show_default_blocks: false },
+          },
+        },
+        handler: async (paymentResult) => {
+          try {
+            const verifyResponse = await fetch(
+              `${API}/orders/razorpay/verify`,
+              {
+                method: "POST",
+                headers,
+                body: JSON.stringify(paymentResult),
+              }
+            );
+
+            const verified = await verifyResponse.json();
+
+            if (!verifyResponse.ok || !verified.success) {
+              throw new Error(verified.message || "Payment verification failed.");
+            }
+
+            setPlacedOrder(verified.order);
+            setCart([]);
+            setDeliveryAddress("");
+            setShowCheckout(false);
+            setShowCart(true);
+          } catch (error) {
+            setOrderMessage(error.message || "Could not verify payment.");
+          } finally {
+            setPlacingOrder(false);
+          }
+        },
+        modal: {
+          ondismiss: () => setPlacingOrder(false),
+        },
+        theme: { color: "#234d3a" },
+      });
+
+      checkout.open();
+      checkoutOpened = true;
+    } catch (error) {
+      setOrderMessage(error.message || "Unable to start online payment.");
+    } finally {
+      if (!checkoutOpened) setPlacingOrder(false);
+    }
+  }
+
   const placeOrder = async () => {
     setOrderMessage("");
 
@@ -262,14 +378,12 @@ function App() {
       return;
     }
 
-    // Ask the user to log in without clearing the cart.
     if (!authToken || !currentUser) {
       setAuthMessage("Please log in to place your order.");
       setAuthMode("login");
       return;
     }
 
-    // The cart must contain items from one restaurant.
     const restaurantIds = [
       ...new Set(
         cart.map((item) =>
@@ -279,9 +393,21 @@ function App() {
     ];
 
     if (restaurantIds.length !== 1 || !restaurantIds[0]) {
-      setOrderMessage(
-        "Please make sure all cart items belong to one restaurant."
-      );
+      setOrderMessage("Please make sure all cart items belong to one restaurant.");
+      return;
+    }
+
+    const orderPayload = {
+      restaurantId: restaurantIds[0],
+      items: cart.map((item) => ({
+        menuItemId: item._id,
+        quantity: item.quantity,
+      })),
+      deliveryAddress: deliveryAddress.trim(),
+    };
+
+    if (paymentMethod !== "cod") {
+      await startRazorpayPayment(orderPayload);
       return;
     }
 
@@ -294,14 +420,7 @@ function App() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${authToken}`,
         },
-        body: JSON.stringify({
-          restaurantId: restaurantIds[0],
-          items: cart.map((item) => ({
-            menuItemId: item._id,
-            quantity: item.quantity,
-          })),
-          deliveryAddress: deliveryAddress.trim(),
-        }),
+        body: JSON.stringify(orderPayload),
       });
 
       const data = await response.json();
@@ -313,11 +432,10 @@ function App() {
       setPlacedOrder(data.order);
       setCart([]);
       setDeliveryAddress("");
-      setOrderMessage("");
+      setShowCheckout(false);
+      setShowCart(true);
     } catch (error) {
-      setOrderMessage(
-        error.message || "Unable to place order. Please try again."
-      );
+      setOrderMessage(error.message || "Unable to place order. Please try again.");
     } finally {
       setPlacingOrder(false);
     }
@@ -474,7 +592,111 @@ function App() {
           </section>
         )}
 
-        {!showOrders && selectedRestaurant && (
+        {!showOrders && showCheckout && (
+          <section className="checkout-page">
+            <button className="back-button" type="button" onClick={() => { setShowCheckout(false); setShowCart(true); setOrderMessage(""); }}>
+              ← Back to cart
+            </button>
+            <div className="checkout-heading">
+              <span className="eyebrow">ONE LAST STEP</span>
+              <h1>Checkout<span>.</span></h1>
+              <p>Confirm your delivery details and choose how you’d like to pay.</p>
+            </div>
+            <div className="checkout-layout">
+              <div className="checkout-main">
+                <section className="checkout-card">
+                  <h2>Delivery address</h2>
+                  <label htmlFor="checkoutDeliveryAddress">Full delivery address</label>
+                  <textarea
+                    id="checkoutDeliveryAddress"
+                    value={deliveryAddress}
+                    onChange={(event) => setDeliveryAddress(event.target.value)}
+                    placeholder="House/flat, street, area, city, PIN code"
+                    rows={4}
+                    maxLength={300}
+                    required
+                  />
+                </section>
+                <section className="checkout-card">
+                  <h2>Payment method</h2>
+                  <div className="payment-options">
+                    <label
+                      className={`payment-option ${paymentMethod === "cod" ? "selected" : ""
+                        }`}
+                    >
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        value="cod"
+                        checked={paymentMethod === "cod"}
+                        onChange={() => setPaymentMethod("cod")}
+                      />
+                      <span>
+                        <strong>Cash on Delivery</strong>
+                        <small>Pay when your order arrives</small>
+                      </span>
+                      <span className="payment-availability">Available</span>
+                    </label>
+
+                    {[
+                      { id: "upi", title: "UPI" },
+                      { id: "card", title: "Card" },
+                      { id: "netbanking", title: "Net Banking" },
+                    ].map((method) => (
+                      <label
+                        className={`payment-option ${paymentMethod === method.id ? "selected" : ""
+                          }`}
+                        key={method.id}
+                      >
+                        <input
+                          type="radio"
+                          name="paymentMethod"
+                          value={method.id}
+                          checked={paymentMethod === method.id}
+                          onChange={() => setPaymentMethod(method.id)}
+                        />
+                        <span>
+                          <strong>{method.title}</strong>
+                          <small>Pay securely with Razorpay</small>
+                        </span>
+                        <span className="payment-availability">Test mode</span>
+                      </label>
+                    ))}
+                  </div>
+
+                  <p className="payment-note">
+                    Online payments open Razorpay Checkout. Choose a payment method above to continue.
+                  </p>
+                </section>
+              </div>
+              <aside className="checkout-card checkout-summary">
+                <h2>Order summary</h2>
+                {cart.map((item) => (
+                  <div className="summary-row" key={item._id}>
+                    <span>{item.name} <small>× {item.quantity}</small></span>
+                    <strong>₹{item.price * item.quantity}</strong>
+                  </div>
+                ))}
+                <div className="cart-total"><span>Total</span><strong>₹{cartTotal}</strong></div>
+                <p className="cart-note">Delivery fees and taxes, if applicable, are not included.</p>
+                {orderMessage && <p className="checkout-error" role="alert">{orderMessage}</p>}
+                <button className="signup-button place-order-button" type="button" disabled={placingOrder || !cart.length} onClick={placeOrder}>
+                  {placingOrder
+                    ? "Processing..."
+                    : paymentMethod === "cod"
+                      ? "Place Order · Cash on Delivery"
+                      : `Pay ₹${cartTotal} · ${{ upi: "UPI", card: "Card", netbanking: "Net Banking" }[
+                      paymentMethod
+                      ]
+                      }`}
+                </button>
+                {!currentUser && <p className="checkout-login-note">You’ll be asked to log in before placing your order.</p>}
+              </aside>
+            </div>
+          </section>
+        )}
+
+        {!showOrders && !showCheckout && selectedRestaurant && (
           <section className="menu-page">
             <button
               className="back-button"
@@ -602,29 +824,17 @@ function App() {
                     </p>
 
                     <div className="checkout-form">
-                      <h3>Delivery details</h3>
-
-                      <label htmlFor="deliveryAddress">
-                        Full delivery address
-                      </label>
-                      <textarea
-                        id="deliveryAddress"
-                        value={deliveryAddress}
-                        onChange={(e) => setDeliveryAddress(e.target.value)}
-                        placeholder="House/flat, street, area, city, PIN code"
-                        rows={3}
-                        maxLength={300}
-                        required
-                      />
-
-                      {orderMessage && <p role="alert">{orderMessage}</p>}
-
                       <button
                         type="button"
-                        disabled={placingOrder}
-                        onClick={placeOrder}
+                        className="signup-button proceed-checkout-button"
+                        onClick={() => {
+                          setOrderMessage("");
+                          setPaymentMethod("cod");
+                          setShowCart(false);
+                          setShowCheckout(true);
+                        }}
                       >
-                        {placingOrder ? "Placing order..." : "Place Order"}
+                        Proceed to Checkout
                       </button>
                     </div>
                   </>

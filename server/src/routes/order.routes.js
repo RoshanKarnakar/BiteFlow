@@ -2,7 +2,10 @@
 const express = require("express");
 
 const authenticate = require("../middleware/auth.middleware");
-
+const {
+  createRazorpayOrder,
+  verifyRazorpayPayment,
+} = require("../controllers/payment.controller");
 const {
   createOrder,
   getOrders,
@@ -14,6 +17,9 @@ const router = express.Router();
 // All order routes require login.
 router.use(authenticate);
 
+
+router.post("/razorpay/create", createRazorpayOrder);
+router.post("/razorpay/verify", verifyRazorpayPayment);
 // Place a new order
 router.post("/", createOrder);
 
