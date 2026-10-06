@@ -2,7 +2,7 @@
 
 A full-stack food-ordering web application built with the MERN stack. BiteFlow lets users browse restaurants, add menu items to a cart, place orders, and view their order history.
 
-> **Project status:** The core customer ordering flow is implemented. Live order tracking, a restaurant admin dashboard, and online UPI/card payments are planned features, not completed features.
+> **Project status:** The customer flow includes a dedicated checkout screen and Cash on Delivery order placement. UPI, card, and net banking are shown as coming soon; Razorpay and other online payment processing are not implemented.
 
 ## Features
 
@@ -11,14 +11,15 @@ A full-stack food-ordering web application built with the MERN stack. BiteFlow l
 - Session persistence through the app's existing authentication flow.
 - Restaurant browsing through the backend API.
 - Menu browsing and adding items to the cart.
-- Checkout and order placement.
+- Dedicated checkout with delivery address, order summary, total, and payment method selection.
+- Cash on Delivery order placement through the existing order API.
 - Order storage in MongoDB.
 - **My Orders** page to view order history, including available details such as status, items, delivery address, and total.
 
 ### Planned
 - Live order tracking and a progress timeline.
 - Restaurant/admin dashboard to accept, reject, and update orders.
-- Online payments through a payment gateway (UPI and debit/credit cards).
+- Online payments through a payment gateway (UPI, cards, and net banking).
 - Payment-status and transaction handling.
 
 ## Tech Stack
@@ -70,7 +71,7 @@ cd server
 npm install
 ```
 
-Create a `.env` file in the backend folder. The following names are examples only—use the exact variable names read by your backend code:
+Copy `server/.env.example` to `server/.env` and enter your own MongoDB connection string and a private random JWT secret. Do not share or upload your `.env` file.
 
 ```env
 PORT=3000
@@ -121,7 +122,7 @@ These endpoints have been used or verified during development:
 | `GET` | `/api/restaurants` | Retrieve restaurant data. |
 | `GET` | `/api/orders` | Retrieve the signed-in user's orders; authentication is required. |
 
-Order creation is implemented in the app. Confirm the exact method and route in your backend route files before documenting or calling it directly.
+Order creation uses the authenticated `POST /api/orders` endpoint. COD creates a normal BiteFlow order; the order API does not process online payments.
 
 ### Quick checks
 
@@ -157,8 +158,8 @@ Review this list against your project before committing.
 - [ ] Live order tracking with a status timeline
 - [ ] Restaurant/admin order management dashboard
 - [ ] Secure order acceptance, rejection, and status updates
-- [ ] Cash on Delivery flow
-- [ ] Test-mode UPI/card gateway integration
+- [x] Cash on Delivery flow
+- [ ] Test-mode UPI/card/net banking gateway integration
 - [ ] Production payment verification and webhook handling
 - [ ] Automated tests and deployment
 
