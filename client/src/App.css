@@ -57,16 +57,73 @@ button { cursor: pointer; }
 
 .brand-dot { color: var(--orange); margin-left: -9px; }
 
-.nav-location { display: flex; flex-direction: column; gap: 4px; }
-.nav-location span, .nav-location strong { font-size: 12px; }
-.nav-location span { color: var(--muted); }
-.nav-location strong { font-size: 13px; }
+.nav-location {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border: none;
+  background: transparent;
+  padding: 6px 12px;
+  margin: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 10px;
+  transition: background 0.2s ease;
+}
+
+.nav-location:hover {
+  background: #f7f3ee;
+}
+
+.nav-location span {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.2;
+}
+
+.nav-location strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f5b45;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.nav-location strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f5b45;
+  line-height: 1.2;
+  white-space: nowrap;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .nav-actions { display: flex; gap: 10px; }
 .nav-actions button { padding: 11px 20px; border-radius: 9px; font-weight: 700; }
 .login-button { background: transparent; border: 1px solid #e8e5dc; }
-.signup-button { color: white; background: var(--green); border: 1px solid var(--green); }
+.signup-button {
+  border: none;
+  border-radius: 12px;
+  padding: 11px 22px;
+  background: #1f5b45;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
 
+.signup-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.15);
+}
+
+.signup-button:active {
+  transform: translateY(0);
+}
 .hero {
   display: grid;
   grid-template-columns: 1fr 0.9fr;
@@ -500,5 +557,154 @@ footer p, footer > span { font-size: 11px; color: var(--muted); }
 @media (max-width: 480px) {
   .auth-modal {
     padding: 30px 22px;
+  }
+}
+
+
+/* Admin order management */
+.admin-section { margin-top: 24px; }
+.admin-heading-actions { display: flex; gap: 10px; align-items: center; }
+.admin-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin: 24px 0; }
+.admin-stat { padding: 18px; border: 1px solid rgba(35, 77, 58, .12); border-radius: 16px; background: #fff; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 8px 24px rgba(0,0,0,.04); }
+.admin-stat span { color: #666; font-size: .9rem; }
+.admin-stat strong { font-size: 1.5rem; color: #234d3a; }
+.admin-orders-list { display: grid; gap: 18px; }
+.admin-order-card { background: #fff; border: 1px solid rgba(35, 77, 58, .12); border-radius: 20px; padding: 22px; box-shadow: 0 10px 30px rgba(0,0,0,.05); }
+.admin-order-top { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 20px; }
+.admin-order-top h3 { margin: 5px 0 0; }
+.order-status-badge { display: inline-flex; padding: 8px 12px; border-radius: 999px; font-size: .82rem; font-weight: 700; background: #eef4f0; color: #234d3a; }
+.status-cancelled { background: #fff0f0; color: #b42318; }
+.status-delivered { background: #eaf7ef; color: #177245; }
+.admin-order-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; padding: 18px 0; border-top: 1px solid #eee; border-bottom: 1px solid #eee; }
+.admin-order-grid strong { display: block; margin-bottom: 6px; }
+.admin-order-grid p { margin: 4px 0; color: #666; font-size: .9rem; line-height: 1.45; }
+.admin-total { margin-top: 8px; font-size: 1.15rem; color: #234d3a; }
+.admin-status-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 18px; }
+.admin-status-actions > span { font-weight: 700; margin-right: 4px; }
+.status-action-button, .danger-button { border: 0; border-radius: 999px; padding: 9px 14px; cursor: pointer; font-weight: 700; background: #234d3a; color: white; }
+.danger-button { background: #b42318; }
+.status-action-button:disabled, .danger-button:disabled { opacity: .55; cursor: not-allowed; }
+@media (max-width: 900px) { .admin-order-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px) { .admin-order-top, .admin-heading-actions { flex-direction: column; align-items: flex-start; } .admin-order-grid { grid-template-columns: 1fr; } }
+
+
+/* ================================
+   CHECKOUT DELIVERY LOCATION
+================================ */
+
+.location-checkout-box {
+  margin-top: 18px;
+  padding: 16px;
+  background: #ffffff;
+  border: 1px solid #e8e5df;
+  border-radius: 14px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+}
+
+.location-checkout-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.location-checkout-header > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.location-checkout-header strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+  margin-bottom: 6px;
+}
+
+.location-checkout-header p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #666;
+  word-break: break-word;
+}
+
+/* Edit / Save / Use Location button */
+
+.location-button {
+  flex-shrink: 0;
+  border: 1px solid #1f5b45;
+  background: #fff;
+  color: #1f5b45;
+  padding: 8px 14px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.location-button:hover {
+  background: #1f5b45;
+  color: #fff;
+}
+
+.location-button:active {
+  transform: scale(0.97);
+}
+
+/* Manual edit address field */
+
+.location-checkout-box textarea {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 8px;
+  padding: 11px 12px;
+  border: 1px solid #d9d6d0;
+  border-radius: 9px;
+  background: #faf9f7;
+  color: #222;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.location-checkout-box textarea:focus {
+  border-color: #1f5b45;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(31, 91, 69, 0.08);
+}
+
+/* Use current location button when no location is selected */
+
+.location-checkout-box > .location-button {
+  margin-top: 12px;
+}
+
+/* Mobile */
+
+@media (max-width: 600px) {
+  .location-checkout-box {
+    padding: 14px;
+  }
+
+  .location-checkout-header {
+    gap: 10px;
+  }
+
+  .location-checkout-header strong {
+    font-size: 14px;
+  }
+
+  .location-checkout-header p {
+    font-size: 12px;
+  }
+
+  .location-button {
+    padding: 7px 11px;
+    font-size: 12px;
   }
 }

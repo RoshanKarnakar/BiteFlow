@@ -28,6 +28,10 @@ function App() {
     }
   });
 
+  const [editingAddress, setEditingAddress] = useState(false);
+  const [userLocation, setUserLocation] = useState("");
+
+
   const [authToken, setAuthToken] = useState(
     () => sessionStorage.getItem("biteflowToken") || ""
   );
@@ -62,6 +66,11 @@ function App() {
   const [orders, setOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersError, setOrdersError] = useState("");
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [adminOrders, setAdminOrders] = useState([]);
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [adminError, setAdminError] = useState("");
+  const [adminUpdatingId, setAdminUpdatingId] = useState("");
 
 
 
@@ -441,6 +450,96 @@ function App() {
     }
   };
 
+  const isStaffUser = Boolean(
+    currentUser &&
+    (currentUser.role === "admin" || currentUser.role === "restaurant_owner")
+  );
+
+  const adminStatusOptions = {
+    pending: ["confirmed", "cancelled"],
+    confirmed: ["preparing", "cancelled"],
+    preparing: ["ready", "cancelled"],
+    ready: ["out_for_delivery", "cancelled"],
+    out_for_delivery: ["delivered"],
+    delivered: [],
+    cancelled: [],
+  };
+
+  const statusLabel = (status) =>
+  ({
+    pending: "Pending",
+    confirmed: "Confirmed",
+    preparing: "Preparing",
+    ready: "Ready",
+    out_for_delivery: "Out for Delivery",
+    delivered: "Delivered",
+    cancelled: "Cancelled",
+  }[status] || status || "Pending");
+
+  async function loadAdminOrders() {
+    if (!authToken || !isStaffUser) {
+      setAuthMessage("Admin access is available only to restaurant owners and admins.");
+      return;
+    }
+
+    setShowAdmin(true);
+    setShowOrders(false);
+    setShowCart(false);
+    setSelectedRestaurant(null);
+    setAdminLoading(true);
+    setAdminError("");
+
+    try {
+      const response = await fetch(`${API}/orders`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Unable to load admin orders.");
+      }
+
+      setAdminOrders(Array.isArray(data.orders) ? data.orders : []);
+    } catch (err) {
+      setAdminError(err.message || "Unable to load admin orders.");
+    } finally {
+      setAdminLoading(false);
+    }
+  }
+
+  async function updateAdminOrderStatus(orderId, status) {
+    if (!authToken || !isStaffUser) return;
+
+    setAdminUpdatingId(orderId);
+    setAdminError("");
+
+    try {
+      const response = await fetch(`${API}/orders/${orderId}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ status }),
+      });
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Unable to update order status.");
+      }
+
+      setAdminOrders((current) =>
+        current.map((order) =>
+          order._id === orderId ? { ...order, status: data.order.status } : order
+        )
+      );
+    } catch (err) {
+      setAdminError(err.message || "Unable to update order status.");
+    } finally {
+      setAdminUpdatingId("");
+    }
+  }
+
   async function loadOrders() {
     if (!authToken) {
       setAuthMode("login");
@@ -472,6 +571,46 @@ function App() {
     }
   }
 
+
+  function getCurrentLocation() {
+    if (!navigator.geolocation) {
+      alert("Location is not supported by your browser.");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+
+        try {
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
+            {
+              headers: {
+                Accept: "application/json",
+              },
+            }
+          );
+
+          const data = await response.json();
+
+          if (data.display_name) {
+            setUserLocation(data.display_name);
+            setDeliveryAddress(data.display_name);
+          } else {
+            setUserLocation("Current location");
+          }
+        } catch (error) {
+          console.error("Location lookup failed:", error);
+          setUserLocation("Current location");
+        }
+      },
+      () => {
+        alert("Unable to get your location. Please allow location access.");
+      }
+    );
+  }
+
   return (
     <div className="app">
       <header className="navbar">
@@ -480,10 +619,16 @@ function App() {
           BiteFlow<span className="brand-dot">.</span>
         </a>
 
-        <div className="nav-location">
+        <button
+          className="nav-location"
+          type="button"
+          onClick={getCurrentLocation}
+        >
           <span>Delivering to</span>
-          <strong>Your location⌄</strong>
-        </div>
+          <strong title={userLocation}>
+            📍 {userLocation || "Your location"}
+          </strong>
+        </button>
 
 
         <div className="nav-actions">
@@ -492,6 +637,11 @@ function App() {
               <button className="login-button" onClick={loadOrders}>
                 My Orders
               </button>
+              {isStaffUser && (
+                <button className="login-button admin-nav-button" onClick={loadAdminOrders}>
+                  Manage Orders
+                </button>
+              )}
               <span className="welcome-user">
                 Hi, {currentUser.name || "Customer"}
               </span>
@@ -529,6 +679,119 @@ function App() {
       </header>
 
       <main>
+        {showAdmin && (
+          <section className="restaurants-section admin-section">
+            <div className="section-heading">
+              <div>
+                <span className="eyebrow">BITEFLOW MANAGEMENT</span>
+                <h2>Manage Orders<span>.</span></h2>
+              </div>
+              <div className="admin-heading-actions">
+                <button className="back-button" onClick={loadAdminOrders}>Refresh</button>
+                <button
+                  className="back-button"
+                  onClick={() => {
+                    setShowAdmin(false);
+                    setAdminError("");
+                  }}
+                >
+                  Back to browsing
+                </button>
+              </div>
+            </div>
+
+            {adminLoading && <p className="status-message">Loading orders...</p>}
+            {adminError && <p className="status-message error">{adminError}</p>}
+
+            {!adminLoading && !adminError && (
+              <>
+                <div className="admin-stats">
+                  {Object.entries(
+                    adminOrders.reduce((counts, order) => {
+                      counts[order.status || "pending"] = (counts[order.status || "pending"] || 0) + 1;
+                      return counts;
+                    }, {})
+                  ).map(([status, count]) => (
+                    <div className="admin-stat" key={status}>
+                      <span>{statusLabel(status)}</span>
+                      <strong>{count}</strong>
+                    </div>
+                  ))}
+                </div>
+
+                {adminOrders.length === 0 ? (
+                  <div className="empty-state">
+                    <span>📦</span>
+                    <h3>No orders yet</h3>
+                    <p>New customer orders will appear here.</p>
+                  </div>
+                ) : (
+                  <div className="admin-orders-list">
+                    {adminOrders.map((order) => {
+                      const nextStatuses = adminStatusOptions[order.status] || [];
+                      return (
+                        <article className="admin-order-card" key={order._id}>
+                          <div className="admin-order-top">
+                            <div>
+                              <span className="eyebrow">ORDER #{String(order._id).slice(-8)}</span>
+                              <h3>{order.restaurant?.name || "BiteFlow restaurant"}</h3>
+                            </div>
+                            <span className={`order-status-badge status-${order.status || "pending"}`}>
+                              {statusLabel(order.status)}
+                            </span>
+                          </div>
+
+                          <div className="admin-order-grid">
+                            <div>
+                              <strong>Customer</strong>
+                              <p>{order.customer?.name || "Customer"}</p>
+                              <p>{order.customer?.email || "Email unavailable"}</p>
+                            </div>
+                            <div>
+                              <strong>Items</strong>
+                              {(order.items || []).map((item, index) => (
+                                <p key={item._id || item.menuItem || index}>
+                                  {item.name} × {item.quantity} · ₹{item.price * item.quantity}
+                                </p>
+                              ))}
+                            </div>
+                            <div>
+                              <strong>Delivery</strong>
+                              <p>{order.deliveryAddress || "Not provided"}</p>
+                            </div>
+                            <div>
+                              <strong>Payment</strong>
+                              <p>{order.paymentMethod === "razorpay" ? "Razorpay" : (order.paymentMethod || "COD").toUpperCase()}</p>
+                              <p>{order.paymentStatus === "paid" ? "Paid" : "Payment pending"}</p>
+                              <strong className="admin-total">₹{order.totalAmount ?? 0}</strong>
+                            </div>
+                          </div>
+
+                          {nextStatuses.length > 0 && (
+                            <div className="admin-status-actions">
+                              <span>Update status:</span>
+                              {nextStatuses.map((nextStatus) => (
+                                <button
+                                  key={nextStatus}
+                                  className={nextStatus === "cancelled" ? "danger-button" : "status-action-button"}
+                                  disabled={adminUpdatingId === order._id}
+                                  onClick={() => updateAdminOrderStatus(order._id, nextStatus)}
+                                >
+                                  {adminUpdatingId === order._id ? "Updating..." : statusLabel(nextStatus)}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+          </section>
+        )}
+
         {showOrders && (
           <section className="restaurants-section my-orders-section">
             <div className="section-heading">
@@ -592,7 +855,7 @@ function App() {
           </section>
         )}
 
-        {!showOrders && showCheckout && (
+        {!showAdmin && !showOrders && showCheckout && (
           <section className="checkout-page">
             <button className="back-button" type="button" onClick={() => { setShowCheckout(false); setShowCart(true); setOrderMessage(""); }}>
               ← Back to cart
@@ -606,16 +869,50 @@ function App() {
               <div className="checkout-main">
                 <section className="checkout-card">
                   <h2>Delivery address</h2>
-                  <label htmlFor="checkoutDeliveryAddress">Full delivery address</label>
-                  <textarea
-                    id="checkoutDeliveryAddress"
-                    value={deliveryAddress}
-                    onChange={(event) => setDeliveryAddress(event.target.value)}
-                    placeholder="House/flat, street, area, city, PIN code"
-                    rows={4}
-                    maxLength={300}
-                    required
-                  />
+                  <div className="location-checkout-box">
+                    <div className="location-checkout-header">
+                      <div>
+                        <strong>📍 Delivery location</strong>
+
+                        {deliveryAddress && !editingAddress ? (
+                          <p>{deliveryAddress}</p>
+                        ) : (
+                          <textarea
+                            id="checkoutDeliveryAddress"
+                            value={deliveryAddress}
+                            onChange={(event) => setDeliveryAddress(event.target.value)}
+                            placeholder="Enter your flat, building, street, landmark..."
+                            rows={3}
+                            maxLength={300}
+                          />
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        className="location-button"
+                        onClick={() => {
+                          if (editingAddress) {
+                            setEditingAddress(false);
+                          } else {
+                            setEditingAddress(true);
+                          }
+                        }}
+                      >
+                        {editingAddress ? "Save" : "Edit"}
+                      </button>
+                    </div>
+
+                    {!deliveryAddress && !editingAddress && (
+                      <button
+                        type="button"
+                        className="location-button"
+                        onClick={getCurrentLocation}
+                      >
+                        📍 Use current location
+                      </button>
+                    )}
+                  </div>
                 </section>
                 <section className="checkout-card">
                   <h2>Payment method</h2>
@@ -696,7 +993,7 @@ function App() {
           </section>
         )}
 
-        {!showOrders && !showCheckout && selectedRestaurant && (
+        {!showAdmin && !showOrders && !showCheckout && selectedRestaurant && (
           <section className="menu-page">
             <button
               className="back-button"
@@ -781,6 +1078,7 @@ function App() {
                     <p>Total: ₹{placedOrder.totalAmount}</p>
                     <p>Status: {placedOrder.status}</p>
                     <button
+                      className="signup-button"
                       onClick={() => {
                         setPlacedOrder(null);
                         setShowCart(false);
@@ -846,7 +1144,7 @@ function App() {
           </section>
         )}
 
-        {!showOrders && !selectedRestaurant && (
+        {!showAdmin && !showOrders && !selectedRestaurant && (
           <section className="hero">
             <div className="hero-content">
               <span className="eyebrow">GOOD FOOD. GOOD MOOD.</span>
@@ -898,13 +1196,13 @@ function App() {
           </section>
         )}
 
-        {!showOrders && <section className="features">
+        {!showAdmin && !showOrders && <section className="features">
           <div><span>01</span><strong>Local favourites</strong><small>Explore nearby restaurants</small></div>
           <div><span>02</span><strong>Easy ordering</strong><small>Your next meal, just a few clicks</small></div>
           <div><span>03</span><strong>Made for you</strong><small>Find food that fits your mood</small></div>
         </section>}
 
-        {!showOrders && <section className="restaurants-section" id="restaurants">
+        {!showAdmin && !showOrders && <section className="restaurants-section" id="restaurants">
           <div className="section-heading">
             <div>
               <span className="eyebrow">YOUR NEXT DELICIOUS DISCOVERY</span>

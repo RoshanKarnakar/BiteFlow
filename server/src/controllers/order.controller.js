@@ -142,6 +142,7 @@ const getOrders = async (req, res) => {
 
     const orders = await Order.find(filter)
       .populate("restaurant", "name city")
+      .populate("customer", "name email")
       .select("-__v")
       .sort({ createdAt: -1 })
       .limit(100)
@@ -171,6 +172,7 @@ const updateOrderStatus = async (req, res) => {
     const allowedStatuses = [
       "confirmed",
       "preparing",
+      "ready",
       "out_for_delivery",
       "delivered",
       "cancelled",
@@ -215,7 +217,8 @@ const updateOrderStatus = async (req, res) => {
     const transitions = {
       pending: ["confirmed", "cancelled"],
       confirmed: ["preparing", "cancelled"],
-      preparing: ["out_for_delivery", "cancelled"],
+      preparing: ["ready", "cancelled"],
+      ready: ["out_for_delivery", "cancelled"],
       out_for_delivery: ["delivered"],
       delivered: [],
       cancelled: [],
